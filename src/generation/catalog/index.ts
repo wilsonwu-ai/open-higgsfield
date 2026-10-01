@@ -1,4 +1,5 @@
 import { dop } from "./dop";
+import { gptImage2, nanoBanana2 } from "./fal-image";
 import { flux2 } from "./flux-2";
 import { flux3 } from "./flux-3";
 import { grokImagine2 } from "./grok-imagine-2";
@@ -51,6 +52,8 @@ export const MODELS: readonly ModelEntry[] = [
   kling34k,
   kling3MotionStd,
   kling3MotionPro,
+  nanoBanana2,
+  gptImage2,
   flux2,
   grokImagine2,
   ideogram4,

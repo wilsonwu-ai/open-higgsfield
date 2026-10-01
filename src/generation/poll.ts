@@ -5,7 +5,10 @@ import type { GenerationStatus, StatusResult } from "./platform";
 const TERMINAL = new Set(["completed", "failed", "nsfw", "canceled"]);
 
 export const POLL_INTERVAL_MS = 4000;
-export const POLL_DEADLINE_MS = 10 * 60_000;
+/* A 30-second Seedance clip at 1080p can outrun ten minutes in a busy queue,
+   and a run timed out here is still billed by the platform. */
+export const POLL_DEADLINE_MS =
+  (Number(process.env.NEXT_PUBLIC_POLL_DEADLINE_MINUTES) || 20) * 60_000;
 /** Rounds allowed to fail back to back before the watches are given up on. One
     dropped round must not end every generation in flight. */
 const MAX_MISSES = 3;

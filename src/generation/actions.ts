@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 
+import { FAL_READY_MODELS } from "./catalog/availability";
 import { getModel, parseSettings } from "./catalog";
 import type { GenerationPlane } from "./catalog/types";
 import {
@@ -12,9 +13,41 @@ import {
   encodeCredentials,
   parseCredentialInput,
 } from "./credentials";
+import { createFalQueueClient, isFalRequestId } from "./fal";
+import { toFalInput } from "./fal-input";
 import { createPlatformClient } from "./platform";
-import type { StatusResult } from "./platform";
+import type { GenerationStatus, QueuedGeneration, StatusResult } from "./platform";
+import {
+  PROVIDER_LABELS,
+  providerBaseUrl,
+  providerId,
+  serverKey,
+  type ProviderId,
+} from "./server-config";
 import { toPlatform } from "./to-platform";
+
+export type StudioInfo = {
+  provider: ProviderId;
+  providerLabel: string;
+  /** A key from the server environment is in use (development, or opted in). */
+  serverKey: boolean;
+  keyConfigured: boolean;
+  /** Catalog ids verified to run on the active provider; null = every model. */
+  readyModels: string[] | null;
+};
+
+export async function getStudioInfo(): Promise<StudioInfo> {
+  const provider = providerId();
+  const fromServer = serverKey(provider) !== null;
+  const stored = await readStoredCredentials();
+  return {
+    provider,
+    providerLabel: PROVIDER_LABELS[provider],
+    serverKey: fromServer,
+    keyConfigured: fromServer || stored !== null,
+    readyModels: provider === "fal" ? [...FAL_READY_MODELS] : null,
+  };
+}
 
 export async function savePlatformCredentials(data: unknown) {
   const { apiKey } = parseCredentialInput(data);
@@ -28,29 +61,41 @@ export async function clearPlatformCredentials() {
 }
 
 export async function hasPlatformCredentials() {
-  return (await readStoredCredentials()) !== null;
+  return (await getStudioInfo()).keyConfigured;
 }
 
-export async function submitGeneration(plane: GenerationPlane) {
+export async function submitGeneration(plane: GenerationPlane): Promise<QueuedGeneration> {
   const model = getModel(plane.model);
   const parsed: GenerationPlane = {
     ...plane,
     settings: parseSettings(model, plane.settings),
   };
   const { path, body } = toPlatform(parsed);
-  return createPlatformClient(await readCredentials()).submit(path, body);
+  const provider = providerId();
+  const client = await clientFor(provider);
+  return client.submit(path, provider === "fal" ? toFalInput(path, body) : body);
 }
 
 /** Every request in flight, answered in one round trip. Next dispatches server
     actions one at a time per client, so a poll per run would queue ahead of the
     next submit — the fan-out belongs on this side of the call, where it is
-    genuinely parallel. */
+    genuinely parallel. Each id is routed to the platform that issued it, so a
+    history that spans a provider switch keeps resolving. */
 export async function getGenerationStatuses(data: unknown): Promise<StatusResult[]> {
   const requestIds = parseRequestIds(data);
-  const client = createPlatformClient(await readCredentials());
+  const clients = new Map<ProviderId, Promise<Client>>();
+  const clientOf = (provider: ProviderId) => {
+    let client = clients.get(provider);
+    if (!client) {
+      client = clientFor(provider);
+      clients.set(provider, client);
+    }
+    return client;
+  };
   return Promise.all(
     requestIds.map(async (requestId): Promise<StatusResult> => {
       try {
+        const client = await clientOf(isFalRequestId(requestId) ? "fal" : "higgsfield");
         return { requestId, status: await client.status(requestId) };
       } catch (caught) {
         return { requestId, error: caught instanceof Error ? caught.message : String(caught) };
@@ -59,17 +104,35 @@ export async function getGenerationStatuses(data: unknown): Promise<StatusResult
   );
 }
 
+type Client = {
+  submit(model: string, input: Record<string, unknown>): Promise<QueuedGeneration>;
+  status(requestId: string): Promise<GenerationStatus>;
+};
+
+async function clientFor(provider: ProviderId): Promise<Client> {
+  const apiKey = await keyFor(provider);
+  const baseUrl = providerBaseUrl(provider);
+  return provider === "fal"
+    ? createFalQueueClient({ apiKey, baseUrl })
+    : createPlatformClient({ apiKey, baseUrl });
+}
+
+/* The server key, when allowed, is the key for its own provider. A key saved
+   in the browser belongs to whichever provider is active — the modal asks for
+   "your platform key", and that is the platform answering. */
+async function keyFor(provider: ProviderId): Promise<string> {
+  const fromServer = serverKey(provider);
+  if (fromServer) return fromServer;
+  if (provider === providerId()) {
+    const stored = await readStoredCredentials();
+    if (stored) return stored.apiKey;
+  }
+  throw new MissingCredentialsError();
+}
+
 async function readStoredCredentials() {
   const jar = await cookies();
   return decodeCredentials(jar.get(PLATFORM_KEY_COOKIE)?.value);
-}
-
-async function readCredentials() {
-  const stored = await readStoredCredentials();
-  if (!stored) throw new MissingCredentialsError();
-  const baseUrl = process.env.HF_API_BASE_URL;
-  if (!baseUrl) throw new Error("Missing HF_API_BASE_URL");
-  return { ...stored, baseUrl };
 }
 
 function parseRequestIds(data: unknown): string[] {

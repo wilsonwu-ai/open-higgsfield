@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { MODELS } from "@/generation/catalog";
+import { useStudio } from "@/generation/stores/studio";
 import type { ModelEntry, Surface } from "@/generation/catalog";
 
 import { swatchFor } from "./artwork";
@@ -23,6 +24,8 @@ export function ModelPicker({
   onClose: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const readyModels = useStudio((state) => state.readyModels);
+  const providerLabel = useStudio((state) => state.providerLabel);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -131,7 +134,17 @@ export function ModelPicker({
                 </span>
               )}
               <span className="ohf-model-row-text">
-                <span className="ohf-model-row-name">{model.label}</span>
+                <span className="ohf-model-row-name">
+                  {model.label}
+                  {readyModels && !readyModels.has(model.id) && (
+                    <span
+                      className="ohf-model-row-tag"
+                      title={`Not verified on ${providerLabel ?? "this platform"} — needs a Higgsfield key`}
+                    >
+                      Higgsfield key
+                    </span>
+                  )}
+                </span>
                 <span className="ohf-model-row-desc">{describeModel(model)}</span>
               </span>
               <span className="ohf-model-row-check" aria-hidden>

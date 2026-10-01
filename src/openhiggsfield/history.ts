@@ -32,7 +32,9 @@ export interface RunRecord {
 
 export const HISTORY_KEY = "history.v1";
 export const LEGACY_HISTORY_KEY = "openhiggsfield.history.v1";
-const MAX_RECORDS = 60;
+/* Outputs are archived to disk as they land (archive.ts), so the browser log can
+   afford to remember more runs than the original sixty. */
+const MAX_RECORDS = Number(process.env.NEXT_PUBLIC_HISTORY_CAP) || 200;
 
 export async function loadHistory(
   kv: Kv = defaultKv(),

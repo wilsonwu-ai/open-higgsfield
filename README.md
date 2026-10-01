@@ -1,5 +1,71 @@
 # OpenHiggsfield AI — Open-Source Alternative to Higgsfield AI
 
+> **This fork (`wilsonwu-ai/open-higgsfield`, branch `wilson/studio-plus`)** runs the
+> studio on **fal** as well as the Higgsfield platform, keeps your outputs on disk, and
+> adds an **Explore** shelf of presets. Upstream's README follows the fork notes.
+
+## Fork notes
+
+### What changed
+
+| Area | Upstream | This fork |
+| --- | --- | --- |
+| Platform | Higgsfield platform only (`HF_API_BASE_URL` required) | **fal or Higgsfield** — `GENERATION_PROVIDER`, or automatic when `FAL_KEY` is set. Higgsfield defaults to `https://api.higgsfield.ai`. |
+| Key | Pasted in a modal (httpOnly cookie) | Same modal, **plus** a server-held key (`FAL_KEY` / `HF_API_KEY`) for single-user local installs — development only unless `ALLOW_SERVER_KEY=1`. |
+| Uploads | Vercel Blob token required | Blob if configured, otherwise **fal storage** through `/api/upload` (key stays server-side). |
+| History | Browser IndexedDB, 60 runs, CDN links expire | Cap 200 (`NEXT_PUBLIC_HISTORY_CAP`) and every finished output **archived to `./outputs/<date>/`** with a JSON sidecar (prompt, model, settings, source URL). |
+| Long runs | 10-minute poll deadline | 20 minutes (`NEXT_PUBLIC_POLL_DEADLINE_MINUTES`) — a 30 s Seedance clip can outrun ten. |
+| Presets | — | **Explore**: original templates (fashion walk, UGC review, persona vlog, DV home video, comedy gag, still-hero crowd, glance back, character sheet, contact sheet, JSON product still) plus your own imported presets. |
+| Models | 38 | + **Nano Banana 2** and **GPT Image 2** (fal), + a **Draft** toggle on Seedance 2.5 (fal's cheap preview). The picker tags models not verified on the active platform. |
+
+### How fal fits
+
+fal's queue speaks the same dialect as the Higgsfield platform (`POST /{model}`, request id,
+poll), and hosts many of the same endpoints **at the same paths** — every Seedance 2.0 / 2.5
+variant (incl. edit and extend), Wan 3.0 / Prime, Happy Horse, Qwen Image 3 and Flux 3 were
+verified against fal's model registry on 2026-09-30. `src/generation/fal.ts` absorbs the
+differences: status lives under the model's app id, `COMPLETED` carries no media (the result is
+a second GET), and a failed job still reports `COMPLETED`. Request ids become
+`fal:{appId}:{id}`, so polling never trusts a URL from the browser. `src/generation/fal-input.ts`
+holds the few schema differences (Seedance `duration` is a string on fal; no `output_format`).
+
+Soul, DoP, `kling-video/…`, `minimax/h3` and the other Higgsfield-specific paths are tagged
+**Higgsfield key** in the picker when fal is active.
+
+### Run it locally on fal
+
+```bash
+pnpm install
+export FAL_KEY=…            # https://fal.ai/dashboard/keys — id:secret
+pnpm dev                    # http://localhost:3000 — the topbar reads "fal key"
+```
+
+### Imported presets
+
+```bash
+pnpm presets:import ~/path/to/scrape-folder   # reads post*/prompt.md
+```
+
+Writes `public/presets.local.json` and `public/presets-local/*.jpg`, both gitignored —
+prompts shared by other people stay on the machine that collected them. The importer strips
+caption preambles (`PROMPT SHARE`, hashtags, `➜ Image Prompt:`), picks the nearest catalog
+model and reads aspect and duration from the prompt and the scraped output's pixels.
+
+### What generation costs (fal, 2026-09-30)
+
+Seedance 2.5 bills **$0.0214 per 1,000 tokens**, tokens ≈ width × height × 24 fps × seconds ÷ 1024:
+about **$0.21/s at 480p, $0.46/s at 720p, $1.04/s at 1080p** (the 480p figure matches the
+"from $0.2057 / s" Higgsfield lists for the same model). Nano Banana 2 is $0.08 per image.
+Use Draft or 480p to iterate; render the keeper at 720p/1080p.
+
+### License
+
+Upstream has **no LICENSE file** (as of 2026-09-30), so no rights are granted beyond GitHub's
+terms for viewing and forking. This fork is for personal R&D. Don't redistribute, rebrand or use
+it commercially until upstream publishes a license.
+
+---
+
 > **The free, open-source alternative to Higgsfield AI.** Generate images and
 > videos with 38 models from one prompt bar — no closed ecosystem, no studio
 > subscription.

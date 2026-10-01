@@ -19,6 +19,8 @@ const MAP: Record<string, Mapper> = {
   "seedance-2.5": (plane) => mapSeedance(plane, "bytedance/seedance-2.5"),
   "seedance-2.5-edit": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-edit", false),
   "seedance-2.5-extend": (plane) => mapSeedanceSource(plane, "bytedance/seedance-2.5/video-extend", true),
+  "nano-banana-2": mapNanoBanana2,
+  "gpt-image-2": mapGptImage2,
 };
 
 export function toPlatform(plane: GenerationPlane): Mapped {
@@ -150,6 +152,48 @@ function seedanceBody(plane: GenerationPlane, withDuration: boolean) {
     generate_audio: plane.settings.generateAudio,
     ...(withDuration ? { duration: plane.settings.duration } : {}),
     ...(plane.settings.outputFormat ? { output_format: plane.settings.outputFormat } : {}),
+    ...(plane.settings.draft === true ? { draft: true } : {}),
+  };
+}
+
+/* fal's standard image_size presets, keyed by the catalog's aspect ratio. */
+const IMAGE_SIZE: Record<string, string> = {
+  "1:1": "square_hd",
+  "4:3": "landscape_4_3",
+  "3:4": "portrait_4_3",
+  "16:9": "landscape_16_9",
+  "9:16": "portrait_16_9",
+};
+
+export function imageSizeFor(aspect: unknown): string | undefined {
+  return typeof aspect === "string" ? IMAGE_SIZE[aspect] : undefined;
+}
+
+function mapNanoBanana2(plane: GenerationPlane): Mapped {
+  const refs = urls(plane, "reference");
+  return {
+    path: refs.length ? "fal-ai/nano-banana-2/edit" : "fal-ai/nano-banana-2",
+    body: {
+      prompt: plane.prompt.text,
+      aspect_ratio: plane.settings.aspectRatio,
+      resolution: plane.settings.resolution,
+      num_images: Number(plane.settings.numImages) || 1,
+      output_format: "png",
+      ...(refs.length ? { image_urls: refs } : {}),
+    },
+  };
+}
+
+function mapGptImage2(plane: GenerationPlane): Mapped {
+  return {
+    path: "openai/gpt-image-2",
+    body: {
+      prompt: plane.prompt.text,
+      image_size: imageSizeFor(plane.settings.aspectRatio) ?? "landscape_4_3",
+      quality: plane.settings.quality,
+      num_images: Number(plane.settings.numImages) || 1,
+      output_format: "png",
+    },
   };
 }
 

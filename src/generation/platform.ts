@@ -27,6 +27,8 @@ export type GenerationStatus = {
   images?: Array<{ url: string }>;
   video?: { url: string };
   error?: unknown;
+  /** fal Seedance 2.5 drafts: the id `draft/complete` renders at full quality. */
+  draftId?: string;
 };
 
 /** One request's answer inside a batched status poll. A request that errors

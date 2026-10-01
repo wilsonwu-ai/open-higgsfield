@@ -307,3 +307,12 @@ export function WaveBadgeIcon({ size = 12 }: IconProps) {
     </svg>
   );
 }
+
+export function CompassIcon({ size = 15 }: IconProps) {
+  return (
+    <svg {...base(size)}>
+      <circle cx="8" cy="8" r="6.25" />
+      <path d="M10.4 5.6 9 9 5.6 10.4 7 7z" />
+    </svg>
+  );
+}

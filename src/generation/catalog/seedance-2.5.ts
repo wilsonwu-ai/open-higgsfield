@@ -16,6 +16,9 @@ export const seedance25: ModelEntry = {
     aspectRatio: { type: "enum", values: SEEDANCE_ASPECT, default: "16:9" },
     duration: { type: "range", min: 4, max: 30, default: 5 },
     ...seedance25Settings,
+    /* fal: a cheap preview that returns a draft id; render the keeper at full
+       quality later through bytedance/seedance-2.5/draft/complete. */
+    draft: { type: "boolean", default: false },
   },
 };
 

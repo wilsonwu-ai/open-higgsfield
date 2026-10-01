@@ -88,12 +88,15 @@ const SETTING_LABELS: Record<string, string> = {
   multiShots: "Multi-shot",
   keepOriginalSound: "Keep original sound",
   characterOrientation: "Orientation",
+  draft: "Draft preview",
+  quality: "Quality",
 };
 
 /* A pill carries one word; "Generate audio" is a panel label, not a control on
    a crowded rail. Only keys that read badly at pill length appear here. */
 const SETTING_PILL_LABELS: Record<string, string> = {
   generateAudio: "Audio",
+  draft: "Draft",
 };
 
 export function settingLabel(key: string): string {

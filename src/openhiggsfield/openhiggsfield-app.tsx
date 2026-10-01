@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { hasPlatformCredentials, submitGeneration } from "@/generation/actions";
+import { getStudioInfo, submitGeneration } from "@/generation/actions";
+import { archiveOutputs } from "@/generation/archive";
+import { useStudio } from "@/generation/stores/studio";
+import type { Preset } from "@/presets/types";
 import { MissingCredentialsError } from "@/generation/credentials";
 import { MODELS, getModel } from "@/generation/catalog";
 import type { Surface } from "@/generation/catalog";
@@ -16,6 +19,7 @@ import { useSettings } from "@/generation/stores/settings";
 import { GRAIN_URI, artFor } from "./artwork";
 import { Composer } from "./composer";
 import { fileNameFor, saveFile } from "./download";
+import { Explore } from "./explore";
 import { KeyModal } from "./key-modal";
 import {
   CROSS_VIEWS,
@@ -181,6 +185,9 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   const [saving, setSaving] = useState<SaveProgress | null>(null);
   const [keyConfigured, setKeyConfigured] = useState(false);
   const [keysOpen, setKeysOpen] = useState(false);
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const providerLabel = useStudio((state) => state.providerLabel);
+  const serverKey = useStudio((state) => state.serverKey);
 
   const galleryRef = useRef<HTMLDivElement>(null);
   const rangeAnchor = useRef<number | null>(null);
@@ -221,9 +228,10 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
   }, [historyLoaded, history]);
 
   useEffect(() => {
-    void hasPlatformCredentials().then((ready) => {
-      setKeyConfigured(ready);
-      if (!ready) setKeysOpen(true);
+    void getStudioInfo().then((info) => {
+      useStudio.getState().setInfo(info);
+      setKeyConfigured(info.keyConfigured);
+      if (!info.keyConfigured) setKeysOpen(true);
     });
   }, []);
 
@@ -263,6 +271,21 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
           void saveHistory(next);
           return next;
         });
+        /* Copy each arrival to disk before its CDN link can lapse. The server
+           decides whether archiving is on; a refusal never touches the grid. */
+        const landed = records.filter((record) => record.status === "completed" && record.urls[0]);
+        if (landed.length > 0) {
+          void archiveOutputs(
+            landed.map((record) => ({
+              id: record.id,
+              url: record.urls[0]!,
+              modelId: record.modelId,
+              prompt: record.prompt,
+              settings: record.settings,
+              createdAt: record.createdAt,
+            })),
+          ).catch(() => undefined);
+        }
         markFresh(records.filter((record) => record.status === "completed").map((record) => record.id));
         if (records.some((record) => record.status === "failed")) {
           const failure = records[0]?.error ?? "the platform reported a failure";
@@ -595,8 +618,29 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
     [surface],
   );
 
+  /* A preset is applied the way Reuse applies a run: model, then its dials
+     (only the ones the model declares), then the words. */
+  const applyPreset = useCallback(
+    (preset: Preset) => {
+      const entry = MODELS.find((model) => model.id === preset.model) ?? getModel("seedance-2.5");
+      setModel(entry.id);
+      if (preset.settings) {
+        const allowed = Object.fromEntries(
+          Object.entries(preset.settings).filter(([key]) => key in entry.settings),
+        );
+        if (Object.keys(allowed).length > 0) setSettings(entry.id, allowed);
+      }
+      (entry.surface === "image" ? useImagePrompt : useVideoPrompt).getState().setText(preset.prompt);
+      setExploreOpen(false);
+      setError(null);
+      setFocusNonce((n) => n + 1);
+    },
+    [setModel, setSettings],
+  );
+
   const openViewer = useCallback((id: string) => setViewerId(id), []);
   const openKeys = useCallback(() => setKeysOpen(true), []);
+  const openExplore = useCallback(() => setExploreOpen(true), []);
   const runGenerate = useCallback(() => void generate(), [generate]);
   const downloadSelection = useCallback(() => void downloadPicked(), [downloadPicked]);
   const dismissDeleted = useCallback(() => setDeleted(null), []);
@@ -630,6 +674,9 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
             busy={busy}
             keyConfigured={keyConfigured}
             onKeys={openKeys}
+            onExplore={openExplore}
+            providerLabel={providerLabel}
+            serverKey={serverKey}
           />
 
           <Gallery
@@ -697,6 +744,7 @@ export function OpenHiggsfieldApp({ fontClassName = "" }: { fontClassName?: stri
             }}
           />
         )}
+        {exploreOpen && <Explore onApply={applyPreset} onClose={() => setExploreOpen(false)} />}
         {keysOpen && (
           <KeyModal
             configured={keyConfigured}

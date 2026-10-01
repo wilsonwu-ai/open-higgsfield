@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { VIEWS, VIEW_LABELS, type GalleryView } from "./data";
-import { AssetsIcon, HeartIcon, ImageIcon, KeyIcon, VideoIcon } from "./icons";
+import { AssetsIcon, CompassIcon, HeartIcon, ImageIcon, KeyIcon, VideoIcon } from "./icons";
 
 const VIEW_ICONS: Record<GalleryView, () => React.ReactNode> = {
   image: () => <ImageIcon />,
@@ -18,12 +18,20 @@ export function Topbar({
   busy,
   keyConfigured,
   onKeys,
+  onExplore,
+  providerLabel,
+  serverKey,
 }: {
   view: GalleryView;
   onView: (next: GalleryView) => void;
   busy: boolean;
   keyConfigured: boolean;
   onKeys: () => void;
+  onExplore: () => void;
+  /** The platform answering, as the server reported it. */
+  providerLabel: string | null;
+  /** The key in use comes from the server environment, not this browser. */
+  serverKey: boolean;
 }) {
   const tabsRef = useRef<HTMLDivElement>(null);
   const [thumb, setThumb] = useState<{ x: number; w: number } | null>(null);
@@ -120,6 +128,21 @@ export function Topbar({
         </div>
       </div>
 
+      {/* Presets sit beside scope, not inside it: Explore loads the composer and
+          never changes what the gallery shows. */}
+      <div className="ohf-bar ohf-enter-1">
+        <button
+          type="button"
+          className="ohf-key ohf-explore-btn"
+          onClick={onExplore}
+          aria-label="Explore presets"
+          title="Explore presets"
+        >
+          <CompassIcon />
+          <span className="ohf-key-text">Explore</span>
+        </button>
+      </div>
+
       {/* Generations run on the visitor's own platform key, so this both states
           whether one is held and opens the modal that sets it — and its lamp is
           the studio's liveness, the one place accent moves. */}
@@ -131,10 +154,18 @@ export function Topbar({
           data-ready={keyConfigured}
           onClick={onKeys}
           aria-label={keyConfigured ? "Edit platform key" : "Add platform key"}
-          title={keyConfigured ? "Edit platform key" : "Add platform key"}
+          title={
+            serverKey
+              ? `Generating on ${providerLabel ?? "the platform"} with the server's key`
+              : keyConfigured
+                ? "Edit platform key"
+                : "Add platform key"
+          }
         >
           <KeyIcon />
-          <span className="ohf-key-text">{keyConfigured ? "Your key" : "Add key"}</span>
+          <span className="ohf-key-text">
+            {serverKey ? `${providerLabel ?? "Server"} key` : keyConfigured ? "Your key" : "Add key"}
+          </span>
           <span className="ohf-lamp" />
         </button>
       </div>
