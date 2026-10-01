@@ -54,8 +54,8 @@ model and reads aspect and duration from the prompt and the scraped output's pix
 ### What generation costs (fal, 2026-09-30)
 
 Seedance 2.5 bills **$0.0214 per 1,000 tokens**, tokens ≈ width × height × 24 fps × seconds ÷ 1024:
-about **$0.21/s at 480p, $0.46/s at 720p, $1.04/s at 1080p** (the 480p figure matches the
-"from $0.2057 / s" Higgsfield lists for the same model). Nano Banana 2 is $0.08 per image.
+about **$0.21/s at 480p, $0.46/s at 720p, $1.04/s at 1080p**. fal sizes each tier by pixel area, so a 3:4 "720p" clip is 834x1112 and costs the same per second as 16:9. The 480p figure matches the
+"from $0.2057 / s" Higgsfield lists for the same model. Nano Banana 2 is $0.08 per image.
 Use Draft or 480p to iterate; render the keeper at 720p/1080p.
 
 ### License
